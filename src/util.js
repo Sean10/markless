@@ -126,9 +126,10 @@ function htmlToSvg(height, width, html, css) {
 }
 
 const parser = require('unified')()
-    .use(require('remark-math'))
     .use(require('remark-parse'))
+    .use(require('remark-frontmatter').default, ['yaml', 'toml'])
     .use(require('remark-gfm'))
+    .use(require('remark-math'))
     .parse;
 
 const nodeToHtml = (() => {

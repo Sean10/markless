@@ -195,6 +195,7 @@
 		"mathjax-full": "^3.1.4",
 		"mdast-util-to-hast": "^10.2.0",
 		"mermaid": "^8.10.1",
+		"remark-frontmatter": "^5.0.0",
 		"remark-gfm": "^1.0.0",
 		"remark-math": "^4.0.0",
 		"remark-parse": "^9.0.0",
