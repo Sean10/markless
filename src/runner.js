@@ -16,12 +16,15 @@ const addInlineImages = (() => {
     }
     const imageThreadMap = new DefaultMap(() => new Map());
     return () => {
-        const documentUri = state.activeEditor.document.uri;
+        const editorState = state.getCurrentEditorState();
+        if (!editorState) return;
+
+        const documentUri = editorState.editor.document.uri;
         const documentUriString = documentUri.toString();
         const lastImageThreadMap = imageThreadMap.get(documentUriString);
         const newImageThreadMap = new Map();
 
-        for (const [matchRange, url, alt] of state.imageList) {
+        for (const [matchRange, url, alt] of editorState.imageList) {
             const key = [documentUriString, matchRange, url].toString();
             // console.log("Image comment key: ", key);
 
@@ -39,7 +42,7 @@ const addInlineImages = (() => {
                 newImageThreadMap.set(key, thread);
             }
         }
-        state.imageList = [];
+        editorState.imageList = [];
         for (let thread of lastImageThreadMap.values()) {
             thread.dispose();
         }
@@ -48,51 +51,73 @@ const addInlineImages = (() => {
 })();
 
 function posToRange(start, end) {
-    const offsetToPos = state.activeEditor.document.positionAt;
-    const rangeStart = offsetToPos(start + state.offset);
-    const rangeEnd = offsetToPos(end + state.offset);
+    const editorState = state.getCurrentEditorState();
+    if (!editorState) return null;
+
+    const offsetToPos = editorState.editor.document.positionAt;
+    const rangeStart = offsetToPos(start + editorState.offset);
+    const rangeEnd = offsetToPos(end + editorState.offset);
     const rangeSerializer = rangeStart.line+":"+rangeStart.character + "-" + rangeEnd.line + ":" + rangeEnd.character;
-    if (state.rangeMap.hasOwnProperty(rangeSerializer)) {
-        return state.rangeMap[rangeSerializer];
+
+    if (state.rangeMap.has(rangeSerializer)) {
+        return state.rangeMap.get(rangeSerializer);
     }
-    state.rangeMap[rangeSerializer] = new vscode.Range(rangeStart, rangeEnd);
-    return state.rangeMap[rangeSerializer];
+    const range = new vscode.Range(rangeStart, rangeEnd);
+    state.rangeMap.set(rangeSerializer, range);
+    return range;
 }
 
 function addDecoration(decoration, startOffset, endOffset) {
+    const editorState = state.getCurrentEditorState();
+    if (!editorState) return;
+
     let range = posToRange(startOffset, endOffset);
-    state.decorationRanges.get(decoration).push(range);
+    if (!range) return;
+
+    if (!editorState.decorationRanges.has(decoration)) {
+        editorState.decorationRanges.set(decoration, []);
+    }
+    editorState.decorationRanges.get(decoration).push(range);
 }
 
 function updateSelectionToLine() {
-    log.debug("update SelectionToLine", state.selection, state.selection.start.line);
-    let line_start = state.activeEditor.document.lineAt(state.selection.start);
-    let line_end = state.activeEditor.document.lineAt(state.selection.end);
+    const editorState = state.getCurrentEditorState();
+    if (!editorState) return;
+
+    log.debug("update SelectionToLine", editorState.selection, editorState.selection.start.line);
+    let line_start = editorState.editor.document.lineAt(editorState.selection.start);
+    let line_end = editorState.editor.document.lineAt(editorState.selection.end);
     log.debug("line_start: ", line_start, "line_end: ", line_end);
     let start = line_start.range.start;
     let end = line_end.range.end;
-    state.selection = new vscode.Selection(start, end);
+    editorState.selection = new vscode.Selection(start, end);
 }
 
 function setDecorations() {
-    for (let [decoration, ranges] of state.decorationRanges) {
+    const editorState = state.getCurrentEditorState();
+    if (!editorState) return;
+
+    for (let [decoration, ranges] of editorState.decorationRanges) {
         // console.log("decoration RANGES", [decoration, ranges]);
         if (state.config.cursorLineDisables) {
             updateSelectionToLine();
         }
 
         if (state.config.cursorDisables) {
-            ranges = ranges.filter((r) => !state.selection.intersection(r));
+            ranges = ranges.filter((r) => !editorState.selection.intersection(r));
         }
-        state.activeEditor.setDecorations(decoration, ranges);
+        editorState.editor.setDecorations(decoration, ranges);
         if (ranges.length == 0) {
-            state.decorationRanges.delete(decoration); // Unused decoration. Still exist in memoized decoration provider
+            editorState.decorationRanges.delete(decoration); // Unused decoration. Still exist in memoized decoration provider
         }
     }
     addInlineImages();
 }
 
 async function visitNodes(node) {
+    const editorState = state.getCurrentEditorState();
+    if (!editorState) return;
+
     const stack = [[node, 0]];
     while (stack.length) {
         let [curNode, listLevel] = stack.pop()
@@ -123,13 +148,17 @@ async function visitNodes(node) {
 }
 
 function normalizeList() {
+    const editorState = state.getCurrentEditorState();
+    if (!editorState) return;
+
     let prefix = "";
+    const text = editorState.text;
 
     const regExPattern = "^( {2,})(\\*|\\d+(?:\\.|\\))|-|\\+) .";
-    const match = new RegExp(regExPattern, "m").exec(state.text);
+    const match = new RegExp(regExPattern, "m").exec(text);
     if (match) {
         let spacesPerLevel = 4;
-        const nextMatch = new RegExp(regExPattern.replace("2", String(match[1].length + 2)), "m").exec(state.text);
+        const nextMatch = new RegExp(regExPattern.replace("2", String(match[1].length + 2)), "m").exec(text);
         if (nextMatch) {
             spacesPerLevel = nextMatch[1].length - match[1].length;
         }
@@ -141,14 +170,14 @@ function normalizeList() {
         prefix += '\n';
     }
 
-    const codeMatch = /^ *[`~]{3,}\n/m.exec(state.text);
-    if (codeMatch && state.text[codeMatch.index + 4] == '\n') {
+    const codeMatch = /^ *[`~]{3,}\n/m.exec(text);
+    if (codeMatch && text[codeMatch.index + 4] == '\n') {
         prefix = codeMatch[0];
     }
 
-    if (prefix && state.offset >= prefix.length) {
-        state.offset -= prefix.length;
-        state.text = prefix + state.text;
+    if (prefix && editorState.offset >= prefix.length) {
+        editorState.offset -= prefix.length;
+        editorState.text = prefix + text;
     }
 }
 
@@ -158,15 +187,17 @@ function normalizeList() {
  * @param {vscode.Range} [range]
  */
 function constructDecorations(range) {
-    const activeEditor = state.activeEditor;
-    state.text = activeEditor.document.getText(range);
+    const editorState = state.getCurrentEditorState();
+    if (!editorState) return;
+
+    editorState.text = editorState.editor.document.getText(range);
     if (range) {
-        state.offset = activeEditor.document.offsetAt(range.start);
+        editorState.offset = editorState.editor.document.offsetAt(range.start);
         normalizeList();
     } else {
-        state.offset = 0;
+        editorState.offset = 0;
     }
-    const node = parser(state.text);
+    const node = parser(editorState.text);
     // rejectRender();
     // new Promise((resolve, reject) => {
     //     rejectRender = reject;
@@ -176,22 +207,45 @@ function constructDecorations(range) {
 }
 
 function updateLogLevel() {
-    log.debug("set log level to debug: ", state.config.debug);
-    if (state.config.debug) {
-		log.setLevel("debug");
-        log.debug("set log level to debug.")
-	} else {
-		log.setLevel("silent");
-	}
+    // 创建输出通道
+    if (!state.outputChannel) {
+        state.outputChannel = vscode.window.createOutputChannel('Markless');
+    }
+
+    // 确保配置正确获取
+    const debugEnabled = state.config.get('debug', false);
+    console.log('Markless 调试配置状态:', debugEnabled);
+    state.outputChannel.appendLine(`当前配置状态: debug=${debugEnabled}`);
+
+    // 设置日志级别
+    if (debugEnabled) {
+        log.setLevel("debug");
+        console.log('Markless 日志级别设置为: debug');
+        state.outputChannel.appendLine('日志级别设置为: debug');
+        state.outputChannel.show();
+    } else {
+        log.setLevel("warn"); // 使用 warn 替代 silent，以便看到重要信息
+        console.log('Markless 日志级别设置为: warn');
+        state.outputChannel.appendLine('日志级别设置为: warn');
+    }
+
+    // 输出测试日志
+    log.debug('调试日志测试');
+    log.info('信息日志测试');
+    log.warn('警告日志测试');
+    log.error('错误日志测试');
 }
 
 function updateDecorations() {
     // console.log("updateDecorations");
-    for (let decoration of state.decorationRanges.keys()) {
-        state.decorationRanges.set(decoration, []); // Reduce failed lookups instead of .clear()
+    const editorState = state.getCurrentEditorState();
+    if (!editorState) return;
+
+    for (let decoration of editorState.decorationRanges.keys()) {
+        editorState.decorationRanges.set(decoration, []); // Reduce failed lookups instead of .clear()
     }
-    if (state.activeEditor.document.lineCount > 500) {
-        for (let range of state.activeEditor.visibleRanges) {
+    if (editorState.editor.document.lineCount > 500) {
+        for (let range of editorState.editor.visibleRanges) {
             range = new vscode.Range(Math.max(range.start.line - 200, 0), 0, range.end.line + 200, 0);
             constructDecorations(range);
         }

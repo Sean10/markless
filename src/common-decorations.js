@@ -3,7 +3,6 @@ const { memoize } = require('./util');
 
 function getSvgDecoration (svgUri, darkMode) {
     return vscode.window.createTextEditorDecorationType({
-        color: "transparent",
         textDecoration: "none; display: inline-block; width: 0;",
         before: {
             contentIconPath: vscode.Uri.parse(svgUri),
@@ -31,4 +30,5 @@ const getUrlDecoration = memoize((isImage) => vscode.window.createTextEditorDeco
         color: "cyan",
     },
 }));
+
 module.exports = { hideDecoration, transparentDecoration, getUrlDecoration, getSvgDecoration};
