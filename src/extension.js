@@ -161,9 +161,9 @@ function bootstrap(context) {
 				log.debug("Heading", node);
 				// console.log("Heading node", posToRange(start, end).start.line, node);
 				// log.debug("node.depth:", node.depth, "state.fontSize: ", state.fontSize, "size: ", state.fontSize + Math.ceil(state.fontSize) / 6 * (7 - node.depth));
-				
+
 				// remark's position.start.line index is from 1 , not from 0, thus, need to minus 1 is the actual line number in vscode.editor.
-				
+
 				let posStart = posToRange(start, end);
 				log.debug("posStart: ", posStart, posStart.start, posStart.start.line, typeof(posStart.start.line));
 				let range = state.activeEditor.document.lineAt(posStart.start).range;
@@ -171,7 +171,7 @@ function bootstrap(context) {
 				log.debug("range:", range, "content:", value);
 				let endSymbolNeedDecoration = 0;
 
-				// because temporarily use value to calculate whether need to hide, thus here need posToRange to get absolute range. 
+				// because temporarily use value to calculate whether need to hide, thus here need posToRange to get absolute range.
 				if (value.startsWith("#")){
 					endSymbolNeedDecoration = start + node.depth + 1;
 					// let temp = posToRange(start, endSymbolNeedDecoration);
@@ -381,28 +381,38 @@ function bootstrap(context) {
 		["link", ["image", (start, end, node) => {
 			const text = state.text.slice(start, end);
 			const match = /!\[(.*)\]\(.+?\)/.exec(text);
-			// console.log("text: "+ JSON.stringify(text));
 			if (!match) return;
 			addDecoration(hideDecoration, start, start + 2);
 			addDecoration(getUrlDecoration(true), start + match[1].length + 2, end);
-			// console.log(JSON.stringify(node));
+
 			if (node.url.startsWith("http")) {
 				state.imageList.push([posToRange(start, end), node.url, node.alt || " "]);
 				return;
 			}
+
 			const editor = vscode.window.activeTextEditor;
 			const mdFilePath = editor.document.uri.fsPath;
 			let imgPath;
-			if (process.platform === 'win32') {
-				// Windows 系统下处理
-				const absolutePath = path.resolve(path.dirname(mdFilePath), node.url);
-				// 确保路径以驱动器盘符开头，并转换为正确的 file:// URI 格式
-				imgPath = `file:///${absolutePath.replace(/\\/g, '/')}`;
+
+			// 检查是否在远程环境
+			const isRemote = vscode.env.remoteName !== undefined;
+
+			// 获取图片的绝对路径
+			const absolutePath = path.resolve(path.dirname(mdFilePath), node.url);
+
+			if (isRemote) {
+				// 远程环境: 使用 vscode.Uri.file 处理路径
+				const fileUri = vscode.Uri.file(absolutePath);
+				imgPath = fileUri.toString();
 			} else {
-				// Unix-like 系统 (Linux/macOS)
-				const absolutePath = path.resolve(path.dirname(mdFilePath), node.url);
-				imgPath = `file://${absolutePath}`;
+				// 本地环境: 根据平台处理路径
+				if (process.platform === 'win32') {
+					imgPath = `file:///${absolutePath.replace(/\\/g, '/')}`;
+				} else {
+					imgPath = `file://${absolutePath}`;
+				}
 			}
+
 			state.imageList.push([posToRange(start, end), imgPath, node.alt || " "]);
 		}]],
 		["emphasis", ["delete", (() => {
@@ -431,7 +441,7 @@ function bootstrap(context) {
 				`;
 				const temp = html.match(/<tr>[^]+?<\/tr>/g)
 					.map(r => r.replace(/^<tr>\n<t[dh]>/, '').split(/<t[dh]>/)
-						.map(c => c.replace(/<\/?("[^"]*"|'[^']*'|[^>])*(>|$)/g, "")))		
+						.map(c => c.replace(/<\/?("[^"]*"|'[^']*'|[^>])*(>|$)/g, "")))
 				const maxLength = temp.reduce((acc, cur) => acc.map((val, idx) => Math.max(val, cur[idx].length)), Array(temp[0].length).fill(0))
 					.reduce((acc, cur)=>acc+cur);
 				log.debug("maxLength: ", maxLength);
