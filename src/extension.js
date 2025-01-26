@@ -385,8 +385,21 @@ function bootstrap(context) {
 			addDecoration(hideDecoration, start, start + 2);
 			addDecoration(getUrlDecoration(true), start + match[1].length + 2, end);
 
+			// 获取当前范围
+			const currentRange = posToRange(start, end);
+
+			// 检查是否已存在相同位置和路径的图片
 			if (node.url.startsWith("http")) {
-				state.imageList.push([posToRange(start, end), node.url, node.alt || " "]);
+				// 检查重复
+				const isDuplicate = state.imageList.some(([existingRange, existingPath]) =>
+					existingPath === node.url &&
+					existingRange.start.line === currentRange.start.line &&
+					existingRange.start.character === currentRange.start.character
+				);
+
+				if (!isDuplicate) {
+					state.imageList.push([currentRange, node.url, node.alt || " "]);
+				}
 				return;
 			}
 
@@ -401,11 +414,9 @@ function bootstrap(context) {
 			const absolutePath = path.resolve(path.dirname(mdFilePath), node.url);
 
 			if (isRemote) {
-				// 远程环境: 使用 vscode.Uri.file 处理路径
 				const fileUri = vscode.Uri.file(absolutePath);
 				imgPath = fileUri.toString();
 			} else {
-				// 本地环境: 根据平台处理路径
 				if (process.platform === 'win32') {
 					imgPath = `file:///${absolutePath.replace(/\\/g, '/')}`;
 				} else {
@@ -413,7 +424,16 @@ function bootstrap(context) {
 				}
 			}
 
-			state.imageList.push([posToRange(start, end), imgPath, node.alt || " "]);
+			// 检查重复
+			const isDuplicate = state.imageList.some(([existingRange, existingPath]) =>
+				existingPath === imgPath &&
+				existingRange.start.line === currentRange.start.line &&
+				existingRange.start.character === currentRange.start.character
+			);
+
+			if (!isDuplicate) {
+				state.imageList.push([currentRange, imgPath, node.alt || " "]);
+			}
 		}]],
 		["emphasis", ["delete", (() => {
 			const strikeDecoration = vscode.window.createTextEditorDecorationType({
