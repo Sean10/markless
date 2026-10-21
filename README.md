@@ -1,3 +1,35 @@
+> [!IMPORTANT]
+> ## 📦 Archived
+>
+> **VS Code 1.135** (released 2026-08-26) ships a **built-in Markdown editor** with Typora-style WYSIWYG editing, as a third editor mode alongside the text editor and the preview. See the [1.135 release notes](https://code.visualstudio.com/updates/v1_135) and the [official walkthrough video](https://www.youtube.com/watch?v=7uyRMACA_pM).
+>
+> Since VS Code now provides this natively, **Markless is deprecated and no longer maintained.** It remains available on the Marketplace, but no further updates or fixes will be made.
+>
+> **To migrate:** open a `.md` file, pick **Markdown Editor** from the editor-type dropdown in the toolbar, then choose **Set default for .md** to make it the default.
+>
+> ### ⚠️ Not a drop-in replacement yet
+>
+> The built-in **Markdown Editor** is a separate webview implementation (`vscode.markdown.editor`), independent of both the text editor and the Markdown preview. As of VS Code 1.138 it does **not** support custom CSS — headings inherit `--vscode-editor-foreground` and render in a single color.
+>
+> Neither customization path reaches it:
+>
+> - **`markdown.styles`** — only wired into the preview webview, never injected into the editor webview
+> - **`editor.tokenColorCustomizations`** — headings are not tokenized; only fenced code blocks receive theme token colors
+>
+> Markless keeps working precisely because it decorates the **native editor**, so `tokenColorCustomizations` applies. If per-level heading colors or other theming matter to you, stay on Markless, or use **Markdown Preview** (`markdown.styles` works there) until upstream support lands.
+>
+> ### Waiting on upstream
+>
+> Microsoft is [revisiting CSS/JS injection](https://github.com/microsoft/vscode/issues/328116#issuecomment-6078194577) for this editor. Tracking issues, all still open as of 2026-10-21:
+>
+> | Issue | Ask | Status |
+> |---|---|---|
+> | [#328116](https://github.com/microsoft/vscode/issues/328116) | Apply custom CSS / stylesheets | open · assigned to `@hediet` |
+> | [#332732](https://github.com/microsoft/vscode/issues/332732) | Honor `markdown.preview.fontSize` | open |
+> | [#328026](https://github.com/microsoft/vscode/issues/328026) | Configurable content width | open |
+>
+> `#328116` needs community upvotes to be moved into the backlog. If custom theming is your reason for using Markless, that is the issue to 👍.
+
 <div align="center" id="top"><img src="assets/logo.png" align="center" alt="markless" width="425"></div>
 
 <div align="center">
@@ -41,7 +73,7 @@ Preview markdown inline and extend the capabilities through existing VS Code ext
 
 <div id="features"> </div>
 
-# **Headers**
+# Headers
 
 ![](assets/heading.jpg)
 
